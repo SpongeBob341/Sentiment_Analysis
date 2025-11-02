@@ -1,48 +1,75 @@
 import os
 import praw
 from transformers import pipeline
-import yaml
-
-def load_reddit_credentials_from_docker_compose():
-    compose_path = os.path.join(os.path.dirname(__file__), "..", "docker-compose.yml")
-    with open(compose_path, 'r') as f:
-        compose_config = yaml.safe_load(f)
-    
-    environment = compose_config['services']['collector']['environment']
-    
-    credentials = {}
-    for item in environment:
-        if '=' in item:
-            key, value = item.split('=', 1)
-            credentials[key.strip()] = value.strip().strip('"')
-            
-    return credentials
-
-reddit_credentials = load_reddit_credentials_from_docker_compose()
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
 
 # Reddit API credentials 
-REDDIT_CLIENT_ID = reddit_credentials.get("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_SECRET = reddit_credentials.get("REDDIT_CLIENT_SECRET")
-REDDIT_USER_AGENT = reddit_credentials.get("REDDIT_USER_AGENT")
-REDDIT_PASSWORD = reddit_credentials.get("REDDIT_PASSWORD")
-
+REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
+REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT")
+REDDIT_USER = os.getenv("REDDIT_USER")
+REDDIT_PASSWORD = os.getenv("REDDIT_PASSWORD")
 
 # Initialize Reddit API
 reddit = praw.Reddit(
     client_id=REDDIT_CLIENT_ID,
     client_secret=REDDIT_CLIENT_SECRET,
     user_agent=REDDIT_USER_AGENT,
-    username=REDDIT_USER_AGENT,
+    username=REDDIT_USER,
     password=REDDIT_PASSWORD
 )
 
 # Initialize sentiment analysis pipeline
 sentiment_pipeline = pipeline("sentiment-analysis")
 
+# Database setup 
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/mydatabase")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class RedditPost(Base):
+    __tablename__ = "reddit_posts"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    sentiment = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 def collect_and_analyze_reddit_posts(subreddit_name="all", limit=10):
-    print(f"Collecting {limit} posts from r/{subreddit_name}...")
+    """
+    Tests the Reddit API connection, then collects and analyzes posts,
+    saving them to the database.
+    """
+    print("Connecting to database...")
+    db = next(get_db()) # Get a database session
 
     try:
+        # 1. Test the Reddit API connection first
+        print("Testing Reddit API connection...")
+        user = reddit.user.me()
+        if not user:
+            # This handles a case where login succeeds but no user is returned
+            raise Exception("Could not retrieve Reddit user info. Check credentials.")
+        
+        print(f"Successfully connected to Reddit as: {user.name}")
+
+        # 2. Proceed with collection if API test is successful
+        print(f"Collecting {limit} posts from r/{subreddit_name}...")
+        
+        # Ensure tables are created if this script is run independently
+        Base.metadata.create_all(bind=engine)
+
         for submission in reddit.subreddit(subreddit_name).hot(limit=limit):
             title = submission.title
             sentiment_result = sentiment_pipeline(title)[0]
@@ -50,9 +77,24 @@ def collect_and_analyze_reddit_posts(subreddit_name="all", limit=10):
 
             print(f"Post: '{title}' | Sentiment: {sentiment_label}")
 
-        print("Successfully collected and analyzed posts.")
+            # Save to database
+            reddit_post = RedditPost(
+                title=title,
+                sentiment=sentiment_label,
+                created_at=datetime.fromtimestamp(submission.created_utc)
+            )
+            db.add(reddit_post)
+        
+        db.commit()
+        print("Successfully collected and analyzed posts, and saved to database.")
+
     except Exception as e:
         print(f"An error occurred: {e}")
+        # Rollback any changes if an error occurred during API check or collection
+        db.rollback() 
+    finally:
+        print("Closing database session.")
+        db.close()
 
 if __name__ == "__main__":
     collect_and_analyze_reddit_posts()

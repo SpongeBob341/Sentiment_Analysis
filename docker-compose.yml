@@ -12,6 +12,21 @@ services:
     depends_on:
       - db
 
+  collector:
+    build: ./backend
+    command: python collector.py
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/mydatabase
+      - REDDIT_CLIENT_ID=tf6m0cZkN9-cE6pMCD0eWg
+      - REDDIT_CLIENT_SECRET=o3dJrfWk6KagD2LHfJHuctXb2qixVQ
+      - REDDIT_USER_AGENT=SpongeBob:v1.0 (by /u/Sponge_Bob1662)
+      - REDDIT_USER=Sponge_Bob1662
+      - REDDIT_PASSWORD=Happy@15092003
+    depends_on:
+      - db
+
   db:
     image: postgres:13
     volumes:

@@ -36,3 +36,38 @@
     transform: rotate(360deg);
   }
 }
+
+/* New styles for Reddit posts display */
+.posts-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  max-width: 1200px;
+  width: 100%;
+}
+
+.post-card {
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  text-align: left;
+  color: white;
+}
+
+.post-card h2 {
+  font-size: 1.2em;
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #61dafb;
+}
+
+.post-card p {
+  font-size: 0.9em;
+  margin-bottom: 5px;
+}
+
+.post-card strong {
+  color: #aaffaa; /* A color for positive sentiment */
+}
