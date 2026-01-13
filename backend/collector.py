@@ -100,18 +100,4 @@ if __name__ == "__main__":
     collect_and_analyze_reddit_posts()
 
 
-# TESTER
-'''
-import praw
 
-reddit = praw.Reddit(
-    client_id="tf6m0cZkN9-cE6pMCD0eWg",
-    client_secret="o3dJrfWk6KagD2LHfJHuctXb2qixVQ",
-    user_agent="SpongeBob:v1.0 (by /u/Sponge_Bob1662)",
-    username="Sponge_Bob1662",
-    password="Happy@15092003"
-)
-
-# This will test your login
-print(reddit.user.me())
-'''
